@@ -1,0 +1,30 @@
+{{- if .Values.serviceHeadless -}}
+{{- if .Values.serviceHeadless.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "generic-deployment.fullname" . }}-headless
+  labels:
+    app.kubernetes.io/name: {{ include "generic-deployment.name" . }}
+    helm.sh/chart: {{ include "generic-deployment.chart" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- with .Values.serviceHeadless.annotations }}
+  annotations:
+{{ toYaml . | indent 4 }}
+{{- end }}
+spec:
+  clusterIP: None
+  ports:
+    {{- range .Values.serviceHeadless.ports }}
+    - name: {{ .name }}
+      protocol: {{ .protocol }}
+      port: {{ .port }}
+      targetPort: {{ .targetPort }}
+    {{- end }}
+  selector:
+    app.kubernetes.io/name: {{ include "generic-deployment.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}
+{{- end }}

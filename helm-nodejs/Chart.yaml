@@ -1,0 +1,4 @@
+apiVersion: v1
+description: helm-nodejs
+name: helm-nodejs
+version: 0.1.0

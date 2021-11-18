@@ -1,0 +1,203 @@
+{{- if eq .Values.kind "StatefulSet" }}
+apiVersion: apps/v1     # for k8s v.1.9+
+kind: Deployment
+metadata:
+  name: {{ include "generic-deployment.fullname" . }}       # deployment name (. mean local var)
+  labels:
+    app.kubernetes.io/name: {{ include "generic-deployment.name" . }}
+    helm.sh/chart: {{ include "generic-deployment.chart" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  replicas: {{ .Values.replicaCount | default 1 }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "generic-deployment.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  strategy:
+    # Blue-Green Deployment
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 100%
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "generic-deployment.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      {{- if .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- range .Values.imagePullSecrets }}
+        - name: {{ . }}
+        {{- end }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds | default 30 }}
+      {{- if .Values.serviceHostNetwork.enabled }}
+      hostNetwork: true
+      dnsPolicy: {{ .Values.serviceHostNetwork.policy }}
+      {{- end }}
+      containers:
+        - name: {{ include "generic-deployment.name" . }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy | quote | default "IfNotPresent" }}
+          {{- if .Values.workingDir }}
+          workingDir: {{ .Values.workingDir }}
+          {{- end }}
+          {{- if .Values.command }}
+          command:
+            {{- range .Values.command }}
+            - {{ . }}
+            {{- end }}
+          {{- end }}
+          {{- if .Values.args }}
+          args:
+            {{- range .Values.args }}
+            - {{ . }}
+            {{- end }}         
+          {{- end }}          
+          {{- if .Values.env }}
+          env:
+            # env_sample
+            # env:
+            # - name: variable01
+            #   secret:
+            #     name: secret01
+            #     key: secretKey01
+            # - name: variable02
+            #   configmap:
+            #     name: configmap02
+            #     key: configmapKey02
+            # - name: variable03
+            #   value: value03
+            {{- range .Values.env }}
+            - name: {{ .name }}
+              {{- if .secret }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .secret.name }}
+                  key: {{ .secret.key }}
+              {{- else if .field }}
+              valueFrom:
+                fieldRef:
+                  fieldPath: {{ .field.key }}
+              {{- else if .configmap }}
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .configmap.name }}
+                  key: {{ .configmap.key }}
+              {{- else }}
+              value: {{ .value | quote }}
+              {{- end }}
+            {{- end }}
+          {{- end }}
+          {{- if .Values.containerPorts }}
+          ports:
+            {{- range $key, $val := .Values.containerPorts }}
+            - containerPort: {{ $val.containerPort }}
+              protocol: {{ $val.protocol }}
+              hostPort: {{ $val.hostPort }}
+            {{- end }}
+          {{- end }}
+          {{- if .Values.healthCheck.enabled }}
+          {{- if .Values.healthCheck.readinessProbe }}
+          readinessProbe:
+            {{- if .Values.healthCheck.readinessProbe.httpGet }}
+            httpGet:
+              path: {{ .Values.healthCheck.readinessProbe.httpGet.path }}
+              port: {{ .Values.healthCheck.readinessProbe.httpGet.port }}
+            {{- else if .Values.healthCheck.readinessProbe.tcpSocket }}
+            tcpSocket:
+              port: {{ .Values.healthCheck.readinessProbe.tcpSocket.port }}
+            {{- else if .Values.healthCheck.readinessProbe.exec }}
+            command:
+              {{- range .Values.healthCheck.readinessProbe.exec.command }}
+              - {{ . }}
+              {{- end }}            
+            {{- end }}
+            initialDelaySeconds: {{ .Values.healthCheck.readinessProbe.initialDelaySeconds | default 0 }}
+            timeoutSeconds: {{ .Values.healthCheck.readinessProbe.timeoutSeconds | default 1 }}
+            periodSeconds: {{ .Values.healthCheck.readinessProbe.periodSeconds | default 10 }}
+            successThreshold: {{ .Values.healthCheck.readinessProbe.successThreshold | default 1 }}
+            failureThreshold: {{ .Values.healthCheck.readinessProbe.failureThreshold | default 3 }}
+          {{- end }}
+          {{- if .Values.healthCheck.livenessProbe }}
+          livenessProbe:
+            {{- if .Values.healthCheck.livenessProbe.httpGet }}
+            httpGet:
+              path: {{ .Values.healthCheck.livenessProbe.httpGet.path }}
+              port: {{ .Values.healthCheck.livenessProbe.httpGet.port }}
+            {{- else if .Values.healthCheck.livenessProbe.tcpSocket }}
+            tcpSocket:
+              port: {{ .Values.healthCheck.livenessProbe.tcpSocket.port }}
+            {{- else if .Values.healthCheck.livenessProbe.exec }}
+            command:
+              {{- range .Values.healthCheck.livenessProbe.exec.command }}
+              - {{ . }}
+              {{- end }}            
+            {{- end }}
+            initialDelaySeconds: {{ .Values.healthCheck.livenessProbe.initialDelaySeconds | default 0 }}
+            timeoutSeconds: {{ .Values.healthCheck.livenessProbe.timeoutSeconds | default 1 }}
+            periodSeconds: {{ .Values.healthCheck.livenessProbe.periodSeconds | default 10 }}
+            successThreshold: {{ .Values.healthCheck.livenessProbe.successThreshold | default 1 }}
+            failureThreshold: {{ .Values.healthCheck.livenessProbe.failureThreshold | default 3 }}
+          {{- end }}
+          {{- end }}
+          resources:
+{{ toYaml .Values.resources | indent 12 }}
+          {{- if .Values.volumeMounts }}
+          volumeMounts:
+            {{- range .Values.volumeMounts }}
+            - name: {{ .name }}
+              mountPath: {{ .mountPath }}
+              {{- if .subPath }}
+              subPath: {{ .subPath }}
+              {{- end }}
+              {{- if .readOnly }}
+              readOnly: {{ .readOnly }}
+              {{- end }}
+            {{- end }}
+          {{- end }}
+      {{- if .Values.volumes }}
+      volumes:
+        {{- range .Values.volumes }}
+        - name: {{ .name }}
+          {{- if .hostPath }}
+          hostPath:
+            path: {{ .hostPath }}
+          {{- else if .configMap }}
+          configMap:
+            name: {{ .configMap.name }}
+            {{- if .configMap.items }}
+            items:
+              {{- range .configMap.items }}
+              - key: {{ .key }}
+                path: {{ .path }}
+              {{- end }}
+            {{- end }}
+          {{- else if .persistentVolumeClaim }}
+          persistentVolumeClaim:
+            claimName: {{ .persistentVolumeClaim.claimName }}
+          {{- else if .nfs }}
+          nfs:
+            path: {{ .nfs.path }}
+            readOnly: {{ .nfs.readOnly }}
+            server: {{ .nfs.server }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        {{- end }}
+      {{- end }}
+    {{- with .Values.nodeSelector }}
+      nodeSelector:
+{{ toYaml . | indent 8 }}
+    {{- end }}
+    {{- with .Values.affinity }}
+      affinity:
+{{ toYaml . | indent 8 }}
+    {{- end }}
+    {{- with .Values.tolerations }}
+      tolerations:
+{{ toYaml . | indent 8 }}
+    {{- end }}
+{{- end }}

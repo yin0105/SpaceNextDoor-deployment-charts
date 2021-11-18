@@ -1,0 +1,52 @@
+{{- if .Values.nodejs.dbmigration.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: "{{ template "name" . }}-db-migration"
+  labels:
+    app: {{ template "name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    mageTag: {{ .Values.nodejs.image.tag }}
+    helm.sh/chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+  annotations:
+    # This is what defines this resource as a hook. Without this line, the
+    # job is considered part of the release.
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "-1"
+    "helm.sh/hook-delete-policy": hook-succeeded
+spec:
+  template:
+    metadata:
+      name: "{{ template "name" . }}-db-migration"
+      labels:
+        app: {{ template "name" . }}
+        release: {{ .Release.Name }}
+        imageTag: {{ .Values.nodejs.image.tag }}
+    spec:
+      restartPolicy: Never
+      terminationGracePeriodSeconds: 0
+      containers:
+      - name: post-running-db-migration
+        image: "{{ .Values.nodejs.image.repository }}:{{ .Values.nodejs.image.tag }}"
+        args: ["run","db:migrate"]
+        {{- if .Values.nodejs.env }}
+        env:
+          {{- range .Values.nodejs.env }}
+            - name: {{ .name }}
+              {{- if .valueFrom }}
+              valueFrom:
+                {{- if .valueFrom.fieldRef }}
+                fieldRef:
+                  fieldPath: {{ .valueFrom.fieldRef.fieldPath }}
+                {{- else}}
+                secretKeyRef:
+                  name: {{ .valueFrom.secretKeyRef.name }}
+                  key: {{ .valueFrom.secretKeyRef.key }}
+                {{- end}}
+              {{- else }}
+              value: {{ .value | quote }}
+              {{- end }}
+            {{- end }}
+          {{- end }}
+{{- end }}

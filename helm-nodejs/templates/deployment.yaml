@@ -1,0 +1,165 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "name" . }}
+  labels:
+    app: {{ template "name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    imageTag: {{ .Values.nodejs.image.tag }}
+spec:
+  replicas: {{ .Values.nodejs.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}
+      release: {{ .Release.Name }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+  template:
+    metadata:
+      labels:
+        app: {{ template "name" . }}
+        release: {{ .Release.Name }}
+        imageTag: {{ .Values.nodejs.image.tag }}
+    spec:
+      {{- if .Values.nodejs.podAntiAffinity }}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                  matchExpressions:
+                    - key: "app"
+                      operator: In
+                      values:
+                      - {{ template "name" . }}
+              topologyKey: "kubernetes.io/hostname"
+      {{- end }}
+      {{- if .Values.nodejs.imagePullSecrets }}
+      imagePullSecrets:
+        - name: {{ .Values.nodejs.imagePullSecrets.name }}
+      {{- end }}
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: {{ template "name" . }}
+          image: "{{ .Values.nodejs.image.repository }}:{{ .Values.nodejs.image.tag }}"
+          imagePullPolicy: {{ .Values.nodejs.image.pullPolicy }}
+          {{- if .Values.nodejs.workingDir }}
+          workingDir: {{ .Values.nodejs.workingDir }}
+          {{- end }}
+          {{- if .Values.nodejs.command }}
+          command:
+            {{- range .Values.nodejs.command }}
+            - {{ . }}
+            {{- end }}
+          {{- end }}
+          {{- if .Values.nodejs.env }}
+          env:
+            {{- range .Values.nodejs.env }}
+            - name: {{ .name }}
+              {{- if .valueFrom }}
+              valueFrom:
+                {{- if .valueFrom.fieldRef }}
+                fieldRef:
+                  fieldPath: {{ .valueFrom.fieldRef.fieldPath }}
+                {{- else}}
+                secretKeyRef:
+                  name: {{ .valueFrom.secretKeyRef.name }}
+                  key: {{ .valueFrom.secretKeyRef.key }}
+                {{- end}}
+              {{- else }}
+              value: {{ .value | quote }}
+              {{- end }}
+            {{- end }}
+          {{- end }}
+          {{- if .Values.nodejs.containerPorts }}
+          ports:
+            {{- range .Values.nodejs.containerPorts }}
+            - containerPort: {{ . }}
+            {{- end }}
+          {{- end }}
+          {{- if .Values.nodejs.volumeMounts }}
+          volumeMounts:
+            {{- range .Values.nodejs.volumeMounts }}
+            - name: {{ .name }}
+              mountPath: {{ .mountPath }}
+              {{- if .subPath }}
+              subPath: {{ .subPath }}
+              {{- end }}
+            {{- end }}
+          {{- end }}
+          {{- if .Values.nodejs.healthCheck }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.nodejs.healthCheck.httpGet.path }}
+              port: {{ .Values.nodejs.healthCheck.httpGet.port }}
+            initialDelaySeconds: 30
+            timeoutSeconds: 60
+            periodSeconds: 30
+            failureThreshold: 10
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.nodejs.healthCheck.httpGet.path }}
+              port: {{ .Values.nodejs.healthCheck.httpGet.port }}
+            initialDelaySeconds: 30
+            timeoutSeconds: 60
+            periodSeconds: 30
+            failureThreshold: 10
+          {{- end }}
+          {{- if .Values.nodejs.resources }}
+          resources:
+            {{- if .Values.nodejs.resources.requests }}
+            requests:
+              {{- if .Values.nodejs.resources.requests.cpu }}
+              cpu: "{{ .Values.nodejs.resources.requests.cpu }}"
+              {{- end }}
+              {{- if .Values.nodejs.resources.requests.memory }}
+              memory: "{{ .Values.nodejs.resources.requests.memory }}"
+              {{- end }}
+            {{- end }}
+            {{- if .Values.nodejs.resources.limits }}
+            limits:
+              {{- if .Values.nodejs.resources.limits.cpu }}
+              cpu: "{{ .Values.nodejs.resources.limits.cpu }}"
+              {{- end }}
+              {{- if .Values.nodejs.resources.limits.memory }}
+              memory: "{{ .Values.nodejs.resources.limits.memory }}"
+              {{- end }}
+            {{- end }}
+          {{- end }}
+    {{- if .Values.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.nodeSelector | indent 8 }}
+    {{- end }}
+  {{- if .Values.nodejs.volumes }}
+      volumes:
+        {{- range .Values.nodejs.volumes }}
+        - name: {{ .name }}
+          {{- if .hostPath }}
+          hostPath:
+            path: {{ .hostPath }}
+          {{- else if .configMap }}
+          configMap:
+            name: {{ .name }}
+            items:
+            {{- range .items }}
+              - key: {{ .keys }}
+                path: {{ .path }}
+            {{- end }}
+            {{- else if .secret }}
+          secret:
+            secretName: {{ .name }}
+            items:
+            {{- range .items }}
+              - key: {{ .keys }}
+                path: {{ .path }}
+            {{- end }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        {{- end }}
+  {{- end }}

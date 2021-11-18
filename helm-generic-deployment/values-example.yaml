@@ -1,0 +1,176 @@
+# Default values for generic-deployment.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# DaemonSet or Deployment or StatefulSet
+kind: Deployment
+
+replicaCount: 1
+
+image:
+  repository: sample/sample
+  tag: latest
+  pullPolicy: IfNotPresent
+#imagePullSecrets:
+#  - sample-image-secret
+
+nameOverride: generic-deployment
+fullnameOverride: generic-deployment
+
+command: {}
+
+args: {}
+
+env: {}
+  # - name: NORMAL_ENV
+  #   value: test-env
+  # - name: SAMPLE_CONFIG
+  #   configmap:
+  #     name: generic-deployment
+  #     key: SAMPLE_CONFIG
+  # - name: SAMPLE_PASSWORD
+  #   secret:
+  #     name: generic-deployment
+  #     key: SAMPLE_PASSWORD
+
+configMaps:
+  create: false
+  data:
+    SAMPLE_CONFIG: "sample-config"
+
+secrets:
+  create: false
+  data:
+    SAMPLE_PASSWORD: "sample-secret"
+
+# volumeMounts:
+#   - name: config-mount
+#     mountPath: /app/config
+
+# volumes:
+#   - name: config-mount
+#     configMap:
+#       name: config
+
+containerPorts:
+  - containerPort: 80
+    protocol: TCP
+    hostPort: ""
+
+resources: {}
+  # requests:
+  #   cpu: 100m
+  #   memory: 50Mi
+  # limits:
+  #   cpu: 2000m
+  #   memory: 200Mi
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+services: {}
+  # ClusterIP type
+  # - type: ClusterIP
+  #   annotation: {}
+  #   ports:
+  #     - name: sample1-service-port
+  #       protocol: TCP
+  #       port: 80
+  #       targetPort: 80
+  # NodePort type
+  # - type: NodePort
+  #   annotation: {}
+  #   ports:
+  #     - name: sample1-service-port
+  #       protocol: TCP
+  #       port: 80
+  #       targetPort: 80
+  #       nodePort: 32080
+  #     - name: sample2-service-port
+  #       protocol: TCP
+  #       port: 8080
+  #       targetPort: 8080
+  #       nodePort: 32081
+  # LoadBalancer type
+  # - suffixName: "lb"
+  #   type: LoadBalancer
+  #   annotation: {}
+  #   ports:
+  #     - name: sample1-service-port
+  #       protocol: TCP
+  #       port: 80
+  #       targetPort: 80
+  #     - name: sample2-service-port
+  #       protocol: TCP
+  #       port: 8080
+  #       targetPort: 8080
+
+serviceHostNetwork:
+  enabled: false
+  policy: ClusterFirstWithHostNet
+
+serviceHeadless:
+  enabled: false
+  # annotation: {}
+  # ports:
+  #   - name: sample1-service-port
+  #     protocol: TCP
+  #     port: 80
+  #     targetPort: 80
+  #   - name: sample2-service-port
+  #     protocol: TCP
+  #     port: 8080
+  #     targetPort: 8080
+
+healthCheck:
+  enabled: false
+  readinessProbe:
+    httpGet:
+      path: /ready
+      port: 80
+    initialDelaySeconds: 0
+    timeoutSeconds: 1
+    periodSeconds: 10
+    successThreshold: 1
+    failureThreshold: 3
+    exec: {}
+      # command:
+      #   - todo
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 80
+    initialDelaySeconds: 0
+    timeoutSeconds: 1
+    periodSeconds: 10
+    successThreshold: 1
+    failureThreshold: 3
+
+ingress:
+  enabled: false
+  annotations: {}
+    # kubernetes.io/ingress.class: nginx
+  rules:
+    - host: a.example.com
+      http:
+        paths:
+          - path: /
+            backend:
+              - servicePort: 80
+          - path: /api
+            backend:
+              - servicePort: 8080
+    - host: b.example.com
+      http:
+        paths:
+          - path: /
+            backend:
+              - servicePort: 80
+  tls: {}
+  #  - hosts:
+  #    - a.example.com
+  #    - b.example.com
+  #    secretName: wildcard.example.com
